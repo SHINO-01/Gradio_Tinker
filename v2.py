@@ -1,5 +1,3 @@
-#Last working version of the code Feb17-12:53PM
-
 import gradio as gr
 import datetime
 
@@ -29,7 +27,11 @@ def chatbot_response(user_input, chat_history, selected_context):
 
     context = RAG_CONTEXTS.get(selected_context, "General Chatbot")
     bot_reply = f"[{selected_context} Context] {context} - You asked: '{user_text}'"
-    chat_history.append((user_text, bot_reply))
+
+    # Ensure messages follow Gradio's expected format
+    chat_history.append({"role": "user", "content": user_text})
+    chat_history.append({"role": "assistant", "content": bot_reply})
+
     return chat_history, ""
 
 # Function to start a new chat (Saves previous chat properly)
@@ -40,9 +42,12 @@ def start_new_chat(selected_context, chat_history, session_list, session_dropdow
         session_list.append(chat_name)  # Add to session list
     
     # Clear chat and update available sessions
-    welcome_message = f"🔄 New chat started with **{selected_context}** context!"
+    welcome_message = {
+        "role": "assistant",
+        "content": f"🔄 New chat started with **{selected_context}** context!"
+    }
     updated_sessions = list(session_list)  # Ensure Gradio sees the change
-    return [(None, welcome_message)], [], updated_sessions, gr.Dropdown(choices=updated_sessions, label="Previous Chats")
+    return [welcome_message], [], updated_sessions, gr.Dropdown(choices=updated_sessions, label="Previous Chats")
 
 # Function to load a selected past chat
 def load_chat(selected_chat):
@@ -113,5 +118,5 @@ with gr.Blocks() as demo:
                 inputs=[session_dropdown],
                 outputs=[chatbot]
             )
-
+            
 demo.launch()

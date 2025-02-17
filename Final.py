@@ -17,11 +17,11 @@ def generate_chat_name():
 
 # Chatbot response function
 def chatbot_response(user_input, chat_history, selected_context):
-    if isinstance(user_input, dict):  # Handle multimodal input
+    if isinstance(user_input, dict):
         user_text = user_input.get("text", "")
     else:
         user_text = user_input
-    
+
     if not user_text.strip():
         return chat_history, ""
 
@@ -31,7 +31,7 @@ def chatbot_response(user_input, chat_history, selected_context):
     updated_history = list(chat_history)
     updated_history.append({"role": "user", "content": user_text})
     updated_history.append({"role": "assistant", "content": bot_reply})
-    
+
     return updated_history, ""
 
 # Function to start a new chat
@@ -44,13 +44,20 @@ def start_new_chat(selected_context, chat_history, session_list):
 
     welcome_message = f"🔄 New chat started with **{selected_context}** context!"
     session_html = create_session_html(session_list)
-    
-    new_chat = [{"role": "assistant", "content": welcome_message}]
-    return new_chat, [], session_list, session_html
+
+    return [{"role": "assistant", "content": welcome_message}], [], session_list, session_html
 
 # Function to load a selected past chat
 def load_chat(selected_chat_name):
-    return chat_sessions.get(selected_chat_name, [])
+    print(f"🔍 DEBUG: Loading chat session: {selected_chat_name}")  # Debugging output
+    history = chat_sessions.get(selected_chat_name, [])
+
+    if history:
+        print(f"✅ Chat history found: {len(history)} messages")
+    else:
+        print(f"⚠️ No chat history found for {selected_chat_name}")
+
+    return history if history else [{"role": "assistant", "content": "No history available for this session."}]
 
 # Function to create HTML for session list
 def create_session_html(sessions):
@@ -60,7 +67,7 @@ def create_session_html(sessions):
     html = "<div class='session-list'>"
     for session in sessions:
         html += f"""
-        <div class='session-item' onclick="selectSession('{session}')">
+        <div class='session-item' data-session="{session}">
             <div class='session-name'>{session}</div>
         </div>
         """
@@ -89,15 +96,27 @@ def create_session_html(sessions):
         background-color: #4a4a4a;
     }
     </style>
+
     <script>
-    window.selectSession = function(sessionName) {
-        const sessionInput = document.querySelector('#session-select-callback');
-        if (sessionInput) {
-            sessionInput.value = sessionName;
-            sessionInput.dispatchEvent(new Event('input', { bubbles: true }));
-            sessionInput.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-    };
+    function attachSessionClickEvents() {
+        document.querySelectorAll('.session-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const sessionName = this.getAttribute('data-session');
+                console.log("✅ DEBUG: Clicked session:", sessionName);
+                const sessionInput = document.querySelector('#session-select-callback');
+                if (sessionInput) {
+                    sessionInput.value = sessionName;
+                    sessionInput.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+        });
+    }
+
+    if (document.readyState === 'complete') {
+        attachSessionClickEvents();
+    } else {
+        document.addEventListener('DOMContentLoaded', attachSessionClickEvents);
+    }
     </script>
     """
     return html
@@ -134,18 +153,14 @@ with gr.Blocks() as demo:
 
             chat_history = gr.State([])
 
-            def handle_message(user_input, history, context):
-                new_history, _ = chatbot_response(user_input, history, context)
-                return new_history, ""
-
             send_btn.click(
-                handle_message,
+                chatbot_response,
                 inputs=[message_input, chat_history, context_selector],
                 outputs=[chatbot, message_input]
             ).then(lambda x: x, inputs=[chatbot], outputs=[chat_history])
 
             message_input.submit(
-                handle_message,
+                chatbot_response,
                 inputs=[message_input, chat_history, context_selector],
                 outputs=[chatbot, message_input]
             ).then(lambda x: x, inputs=[chatbot], outputs=[chat_history])
@@ -162,15 +177,12 @@ with gr.Blocks() as demo:
                 outputs=[chatbot, chat_history, session_list, session_html]
             )
 
-            session_select_callback.input(
+            session_select_callback.change(
                 load_chat,
                 inputs=[session_select_callback],
-                outputs=[chatbot]
-            ).then(lambda x: x, inputs=[chatbot], outputs=[chat_history])
-
-            demo.load(
-                lambda: [{"role": "assistant", "content": "👋 Welcome! This chatbot is using the **Science** context."}],
-                outputs=[chatbot]
-            ).then(lambda x: x, inputs=[chatbot], outputs=[chat_history])
+                outputs=[chatbot, chat_history]
+            )
+            
+            demo.load(lambda: [{"role": "assistant", "content": "👋 Welcome! This chatbot is using the **Science** context."}], outputs=[chatbot])
 
 demo.launch()
