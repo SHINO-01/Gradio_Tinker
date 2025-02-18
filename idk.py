@@ -1,7 +1,7 @@
 import gradio as gr
 import datetime
 
-# --- Simulated RAG Embedding Contexts ---
+# === Simulated RAG Embedding Contexts ===
 RAG_CONTEXTS = {
     "Science": "This chatbot specializes in answering science-related questions.",
     "History": "This chatbot provides insights into historical events and figures.",
@@ -11,83 +11,84 @@ RAG_CONTEXTS = {
 # Global storage for saved chat sessions
 chat_sessions = {}
 
-# Generate a unique chat session name based on current time
+# Generate a unique chat session name
 def generate_chat_name():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # -------------------------------
 # Chatbot response function
-# (handles multimodal input)
+# (handles multimodal input too)
 # -------------------------------
 def chatbot_response(user_input, chat_history, selected_context):
-    print(f"[DEBUG] chatbot_response() called with user_input={user_input} selected_context={selected_context}")
+    print("[DEBUG] chatbot_response() called with user_input=", user_input, " context=", selected_context)
     
     if isinstance(user_input, dict):  # e.g., user uploaded a file
         user_text = user_input.get("text", "")
     else:
-        user_text = user_input  # Regular text
+        user_text = user_input  # plain text
     
     if not user_text.strip():
-        print("[DEBUG] Empty user input; ignoring.")
-        return chat_history, ""  # Ignore empty messages
+        print("[DEBUG] Empty user input. Ignoring.")
+        return chat_history, ""  # ignore empty messages
 
-    context = RAG_CONTEXTS.get(selected_context, "General Chatbot")
-    bot_reply = f"[{selected_context} Context] {context} - You asked: '{user_text}'"
-    
+    context_description = RAG_CONTEXTS.get(selected_context, "General Chatbot")
+    bot_reply = f"[{selected_context} Context] {context_description} - You asked: '{user_text}'"
+
     updated_history = list(chat_history)
     updated_history.append({"role": "user", "content": user_text})
     updated_history.append({"role": "assistant", "content": bot_reply})
-    
+
     return updated_history, ""
 
 # -------------------------------------------
-# Start new chat, optionally save old one
+# Start a new chat, optionally save old one
 # -------------------------------------------
 def start_new_chat(selected_context, chat_history, session_list):
-    print(f"[DEBUG] start_new_chat() triggered with context={selected_context}, len(chat_history)={len(chat_history)}")
+    print("[DEBUG] start_new_chat() triggered with context=", selected_context)
     
     if chat_history:
-        # Save the previous session if it's not empty
+        # Save previous session if not empty
         chat_name = generate_chat_name()
         chat_sessions[chat_name] = list(chat_history)
-        
         session_list = list(session_list)
         session_list.append(chat_name)
 
-        print(f"[DEBUG] Saved previous session as '{chat_name}' with {len(chat_history)} messages")
+        print("[DEBUG] Saved session as:", chat_name, "with", len(chat_history), "messages")
 
     welcome_message = f"🔄 New chat started with **{selected_context}** context!"
     
-    # Update session list HTML
+    # Update session HTML
     session_html = create_session_html(session_list)
     
-    # Start fresh chat (assistant message only)
+    # Fresh chat: assistant greeting
     new_chat = [{"role": "assistant", "content": welcome_message}]
     
+    # Return new chat, cleared chat_history, updated session_list, updated HTML
     return new_chat, [], session_list, session_html
 
 # ---------------------------------------------
 # Load a past chat by index from 'session_list'
 # ---------------------------------------------
 def load_chat(selected_index_str, session_list):
-    print(f"[DEBUG] load_chat() triggered with selected_index_str={selected_index_str}")
+    print("[DEBUG] load_chat() triggered with selected_index_str=", selected_index_str)
+    
     try:
-        selected_index = int(selected_index_str)
-        if 0 <= selected_index < len(session_list):
-            selected_chat_name = session_list[selected_index]
-            print(f"[DEBUG] Attempting to load chat session '{selected_chat_name}'")
-            if selected_chat_name in chat_sessions:
-                return chat_sessions[selected_chat_name]
+        idx = int(selected_index_str)
+        if 0 <= idx < len(session_list):
+            chat_name = session_list[idx]
+            print("[DEBUG] Loading chat_name =", chat_name)
+            if chat_name in chat_sessions:
+                return chat_sessions[chat_name]
     except (ValueError, TypeError):
-        pass
-    print("[DEBUG] Invalid session index or chat not found. Returning empty list.")
-    return []  # return empty if invalid selection
+        print("[DEBUG] Invalid index or parse error.")
+    
+    return []  # Return empty if invalid selection
 
 # ---------------------------------------------
-# Dynamically build HTML to show past sessions
+# Build HTML for sessions (sidebar list)
 # ---------------------------------------------
 def create_session_html(sessions):
-    print(f"[DEBUG] create_session_html() called. sessions={sessions}")
+    print("[DEBUG] create_session_html() with sessions=", sessions)
     
     if not sessions:
         return "<div class='session-list'>No saved chats yet</div>"
@@ -101,7 +102,7 @@ def create_session_html(sessions):
         """
     html += "</div>"
     
-    # Minimal CSS included inline for convenience
+    # Minimal inline CSS for styling
     html += """
     <style>
     .session-list {
@@ -110,19 +111,19 @@ def create_session_html(sessions):
         gap: 8px;
         width: 100%;
         margin-top: 10px;
-        color: #f0f0f0; /* Light text color for dark mode */
+        color: #f0f0f0;
     }
     .session-item {
         padding: 10px;
         border-radius: 5px;
-        background-color: #3a3a3a; /* Dark background for dark mode */
+        background-color: #3a3a3a;
         cursor: pointer;
         transition: background-color 0.3s;
-        color: #f0f0f0; /* Light text for dark background */
-        border: 1px solid #4f4f4f; /* Subtle border */
+        color: #f0f0f0;
+        border: 1px solid #4f4f4f;
     }
     .session-item:hover {
-        background-color: #4a4a4a; /* Slightly lighter on hover */
+        background-color: #4a4a4a;
     }
     .session-name {
         font-size: 14px;
@@ -135,55 +136,46 @@ def create_session_html(sessions):
     return html
 
 # ----------------------------------------------
-# Event Delegation Script in <head>
-# - Attaches one click listener to document
-# - If .session-item is clicked, it triggers the hidden textbox
+# JavaScript snippet in <head>, using <script> tags
+# NOTE: We dispatch an 'input' event, and we look for '#session-select-callback textarea'
+# because Gradio encloses the <textarea> in a container with id='session-select-callback'
 # ----------------------------------------------
 custom_js = """
 <script>
-console.log("[DEBUG] Custom JS loaded. Attaching event delegation for session items...");
+document.addEventListener("click", function(e){
+  var item = e.target.closest(".session-item");
+  if (!item) return;
 
-window.addEventListener("load", () => {
-  console.log("[DEBUG] window.load event fired. Delegating clicks...");
+  console.log("[DEBUG] Clicked .session-item with index:", item.dataset.index);
 
-  document.addEventListener("click", (event) => {
-    // .closest() finds the nearest parent with the class .session-item
-    const item = event.target.closest(".session-item");
-    if (!item) return; // Not clicked on a .session-item
-
-    const index = item.getAttribute("data-index");
-    console.log("[DEBUG] Clicked on .session-item with index:", index);
-
-    if (index !== null) {
-      const sessionInput = document.querySelector("#session-select-callback");
-      if (sessionInput) {
-        sessionInput.value = index;
-        // Dispatch 'input' so Gradio sees the change
-        sessionInput.dispatchEvent(new Event("input", { bubbles: true }));
-      } else {
-        console.log("[DEBUG] #session-select-callback not found!");
-      }
-    }
-  });
+  // We select the actual <textarea> inside #session-select-callback
+  var hiddenBox = document.querySelector("#session-select-callback textarea");
+  if (hiddenBox) {
+    hiddenBox.value = item.dataset.index;
+    console.log("[DEBUG] Setting hidden callback value:", hiddenBox.value);
+    // Dispatch 'input' event to match .input(...) in Python
+    hiddenBox.dispatchEvent(new Event("input", { bubbles: true }));
+  } else {
+    console.log("[DEBUG] #session-select-callback textarea not found!");
+  }
 });
 </script>
 """
 
 # =============================================
-#        Gradio UI Setup with Blocks
+#    Gradio UI Setup with Blocks
 # =============================================
 with gr.Blocks(
-    head=custom_js,  # <--- Injecting script into <head>
+    head=custom_js,
     theme=gr.themes.Base(primary_hue="blue", neutral_hue="gray", text_size=gr.themes.sizes.text_md),
     css="""
     .sidebar {
         min-width: 250px;
         height: 100%;
-        border-right: 1px solid #4f4f4f; /* Darker border for dark mode */
+        border-right: 1px solid #4f4f4f;
         padding-right: 10px;
-        color: #f0f0f0; /* Light text for dark mode */
+        color: #f0f0f0;
     }
-    /* Force dark theme on button and chat elements */
     .new-chat-btn {
         background-color: #3a3a3a !important; 
         color: #f0f0f0 !important;
@@ -195,9 +187,7 @@ with gr.Blocks(
 """
 ) as demo:
     with gr.Row():
-        # ----------------------
-        # Sidebar
-        # ----------------------
+        # -------------- Sidebar --------------
         with gr.Column(scale=1, elem_classes=["sidebar"]):
             gr.Markdown("## 📁 Chat History")
 
@@ -205,13 +195,16 @@ with gr.Blocks(
             session_list = gr.State([])  
             session_html = gr.HTML("<div class='session-list'>No saved chats yet</div>")
             
-            # Hidden textbox to capture session selection
-            session_select_callback = gr.Textbox(elem_id="session-select-callback", visible=False)
+            # Hidden textbox for session selection
+            # Must have interactive=True + the correct elem_id
+            session_select_callback = gr.Textbox(
+                elem_id="session-select-callback", 
+                visible=False,
+                interactive=True
+            )
 
-        # ----------------------
-        # Main Chat UI
-        # ----------------------
-        with gr.Column(scale=4):
+        # -------------- Main Chat UI --------------
+        with gr.Column(scale=10):
             gr.Markdown("# 🤖 Chatbot with RAG Embedding Context")
 
             context_selector = gr.Dropdown(
@@ -223,7 +216,8 @@ with gr.Blocks(
             chatbot = gr.Chatbot(
                 label="Chatbot",
                 type="messages",
-                avatar_images=["img1.png", "img2.png"]  
+                avatar_images=["DRP.png","USR.png"],
+                scale=12
             )
 
             with gr.Row():
@@ -231,57 +225,56 @@ with gr.Blocks(
                     show_label=False, 
                     placeholder="Type your message here...",
                     file_types=[".pdf", ".txt"],
-                    scale=9
+                    scale=12
                 )
-                send_btn = gr.Button("Send", scale=1)
+                send_btn = gr.Button("Send", scale=2)
 
             chat_history = gr.State([])
 
-            # Handler for sending messages
+            # --- Send message handler ---
             def handle_message(user_input, history, context):
-                print("[DEBUG] handle_message() triggered.")
+                print("[DEBUG] handle_message triggered.")
                 new_history, _ = chatbot_response(user_input, history, context)
                 return new_history, ""
 
-            # Send button
-            send_chain = send_btn.click(
+            # -- Send button click
+            send_btn.click(
                 handle_message,
                 inputs=[message_input, chat_history, context_selector],
                 outputs=[chatbot, message_input]
-            )
-            send_chain.then(
+            ).then(
                 lambda x: x,
                 inputs=[chatbot],
                 outputs=[chat_history]
             )
 
-            # Pressing Enter in the input
-            enter_chain = message_input.submit(
+            # -- Pressing Enter in the message_input
+            message_input.submit(
                 handle_message,
                 inputs=[message_input, chat_history, context_selector],
                 outputs=[chatbot, message_input]
-            )
-            enter_chain.then(
+            ).then(
                 lambda x: x,
                 inputs=[chatbot],
                 outputs=[chat_history]
             )
 
-            # Changing context => start new chat
+            # -- Changing context => new chat
             context_selector.change(
                 start_new_chat,
                 inputs=[context_selector, chat_history, session_list],
                 outputs=[chatbot, chat_history, session_list, session_html]
             )
 
-            # "New Chat" button
+            # -- "New Chat" button
             new_chat_btn.click(
                 start_new_chat,
                 inputs=[context_selector, chat_history, session_list],
                 outputs=[chatbot, chat_history, session_list, session_html]
             )
 
-            # Handle session selection from hidden textbox
+            # -- Loading a past session
+            #   session_select_callback is triggered by JS dispatchEvent("input")
             session_select_callback.input(
                 load_chat,
                 inputs=[session_select_callback, session_list],
@@ -292,12 +285,11 @@ with gr.Blocks(
                 outputs=[chat_history]
             )
 
-            # On initial load, show a default welcome
-            load_chain = demo.load(
-                lambda: [{"role": "assistant", "content": "👋 Welcome! This chatbot is using the **Science** context."}],
+            # -- On initial load, show a welcome
+            demo.load(
+                lambda: [{"role": "assistant", "content": "👋 Welcome! This chatbot uses the **Science** context."}],
                 outputs=[chatbot]
-            )
-            load_chain.then(
+            ).then(
                 lambda x: x,
                 inputs=[chatbot],
                 outputs=[chat_history]
