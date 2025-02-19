@@ -170,10 +170,10 @@ with gr.Blocks(
     theme=gr.themes.Base(primary_hue="blue", neutral_hue="gray", text_size=gr.themes.sizes.text_md),
     css="""
     .sidebar {
-        min-width: 250px;
+        min-width: 200px;
         height: 100%;
         border-right: 1px solid #4f4f4f;
-        padding-right: 10px;
+        padding-right: 5px;
         color: #f0f0f0;
     }
     .new-chat-btn {
@@ -186,9 +186,9 @@ with gr.Blocks(
     }
 """
 ) as demo:
-    with gr.Row():
+    with gr.Row(min_height=700):
         # -------------- Sidebar --------------
-        with gr.Column(scale=1, elem_classes=["sidebar"]):
+        with gr.Column(scale=1, elem_classes=["sidebar"], min_width=250):
             gr.Markdown("## 📁 Chat History")
 
             new_chat_btn = gr.Button("➕ New Chat", elem_classes=["new-chat-btn"])
@@ -204,7 +204,7 @@ with gr.Blocks(
             )
 
         # -------------- Main Chat UI --------------
-        with gr.Column(scale=10):
+        with gr.Column(min_width=1100,scale=30):
             gr.Markdown("# 🤖 Chatbot with RAG Embedding Context")
 
             context_selector = gr.Dropdown(
@@ -217,7 +217,8 @@ with gr.Blocks(
                 label="Chatbot",
                 type="messages",
                 avatar_images=["DRP.png","USR.png"],
-                scale=12
+                min_height=650,
+                min_width=900,
             )
 
             with gr.Row():
@@ -225,7 +226,7 @@ with gr.Blocks(
                     show_label=False, 
                     placeholder="Type your message here...",
                     file_types=[".pdf", ".txt"],
-                    scale=12
+                    scale=10,
                 )
                 send_btn = gr.Button("Send", scale=2)
 
