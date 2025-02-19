@@ -21,24 +21,36 @@ def generate_chat_name():
 # -------------------------------
 def chatbot_response(user_input, chat_history, selected_context):
     print("[DEBUG] chatbot_response() called with user_input=", user_input, " context=", selected_context)
-    
+
     if isinstance(user_input, dict):  # e.g., user uploaded a file
         user_text = user_input.get("text", "")
     else:
-        user_text = user_input  # plain text
-    
-    if not user_text.strip():
-        print("[DEBUG] Empty user input. Ignoring.")
-        return chat_history, ""  # ignore empty messages
+        user_text = user_input.strip()
 
+    if not user_text:
+        print("[DEBUG] Empty user input. Ignoring.")
+        return chat_history, ""  # Ignore empty messages
+
+    # Get context description
     context_description = RAG_CONTEXTS.get(selected_context, "General Chatbot")
+
+    # Generate bot response
     bot_reply = f"[{selected_context} Context] {context_description} - You asked: '{user_text}'"
 
+    # Append user message first
     updated_history = list(chat_history)
     updated_history.append({"role": "user", "content": user_text})
+
+    # ✅ Force non-empty bot response (prevents flickering)
+    if not bot_reply.strip():
+        bot_reply = " "
+
+    # Append bot message (ensures there's always content)
     updated_history.append({"role": "assistant", "content": bot_reply})
 
-    return updated_history, ""
+    return updated_history, ""  # ✅ Ensures no flickering
+
+
 
 # -------------------------------------------
 # Start a new chat, optionally save old one
@@ -170,31 +182,65 @@ with gr.Blocks(
     theme=gr.themes.Base(primary_hue="blue", neutral_hue="gray", text_size=gr.themes.sizes.text_md),
     css="""
 
+/* === Ensure No Hidden Width Expansion Anywhere === */
+* {
+    max-width: 100vw !important;
+}
+
+/* === Ensure Full-Screen View Without Overflow === */
 html, body {
     width: 100vw;
     height: 100vh;
     max-width: 100vw;
     max-height: 100vh;
-    background-color: #0f172a; /* Dark theme */
+    background-color: #0f172a;
     color: #f0f0f0;
-    overflow-x: hidden;
+    overflow-x: hidden !important; /* Prevents overflow */
     display: flex;
-    justify-content: center;
+    justify-content: flex-start; /* Ensures everything starts from left */
 }
 
-#main-row {
+/* === Fix .wrap to Prevent Right Overflow While Adding Space === */
+.wrap.svelte-1byz9vf {
+    flex-grow: 1;
+    width: 100vw !important; /* Ensures it takes the full width */
+    max-width: 100vw !important;
+    display: flex !important;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+    padding-right: 15px !important; /* FIX: Adds right space without overflow */
+    margin: 0 !important;
+    overflow-x: hidden !important;
+}
+
+/* === Ensure Parent Container Fully Expands But Doesn't Overflow === */
+.contain.svelte-1byz9vf {
     display: flex !important;
     flex-grow: 1 !important;
     width: 100vw !important;
     max-width: 100vw !important;
-    padding: 15px 20px; /* Adds some space without shifting */
-    gap: 15px; /* Keeps sidebar and content spaced */
-    overflow-x: hidden;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+    overflow-x: hidden !important;
+    padding-right: 50px !important; /* FIX: Adds right padding */
+    margin: 0 !important;
 }
 
-/* === Sidebar Styling === */
+/* === Ensure Main Row Uses Full Width Without Overflow === */
+#main-row {
+    display: flex !important;
+    flex-grow: 1 !important;
+    width: 100vw !important; /* FIX: Ensures right space but no overflow */
+    max-width: 100vw !important;
+    padding: 0px;
+    gap: 0px;
+    overflow-x: hidden !important;
+    padding-right: 15px !important; /* FIX: Right space without causing overflow */
+}
+
+/* === Sidebar (No Changes, Just Ensuring Proper Width) === */
 .sidebar {
-    flex: 0 0 220px; /* Fixed width */
+    flex: 0 0 220px;
     height: 100%;
     background-color: #1e293b;
     padding: 20px;
@@ -202,41 +248,60 @@ html, body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    border-radius: 10px;
 }
 
-/* Sidebar Header */
-.sidebar h2 {
-    font-size: 18px;
-    font-weight: bold;
-    margin-bottom: 20px;
-}
-
-/* New Chat Button */
-.sidebar button {
-    width: 100%;
-    background-color: #3b82f6;
-    color: white;
-    border: none;
-    padding: 12px;
-    font-size: 14px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-.sidebar button:hover {
-    background-color: #2563eb;
-}
-
+/* === Ensure Main Column Fills Remaining Space Properly with Padding Instead of Margin === */
 .main-column {
     flex-grow: 1;
-    width: calc(100vw - 240px) !important; /* Adjusts width correctly */
-    max-width: calc(100vw - 240px) !important;
-    padding: 20px;
+    width: calc(100vw - 220px) !important; /* FIX: Ensure no overflow */
+    max-width: calc(100vw - 220px) !important;
+    padding-right: 15px !important; /* FIX: Adds right spacing without overflow */
     border-radius: 10px;
     background-color: #1e293b;
     overflow-x: hidden;
+}
+
+/* === Fix Chatbot Container to Prevent Overflow While Allowing Right Space === */
+#component-11 {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    min-height: 100%;
+    border-radius: 12px;
+    background-color: #0f172a;
+    padding-right: 15px !important; /* FIX: Adds right spacing */
+    border: 1px solid #334155;
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3);
+    overflow-x: hidden;
+}
+
+/* === FINAL FIX: Force App to Stay Within Screen But Allow Right Padding === */
+#component-0.column.svelte-vt1mxs {
+    width: 100% !important; /* FIX: Ensures correct width */
+    max-width: 100vw !important;
+    flex-grow: 1 !important;
+    overflow-x: hidden !important;
+    padding-right: 15px !important; /* FIX: Adds right spacing */
+}
+/* === Fix Avatar Size Flickering === */
+.chatbot .chat-message.bot img {
+    width: 40px !important;  /* Adjust based on your avatar */
+    height: 40px !important;
+    object-fit: contain;
+    border-radius: 50%;
+}
+.chatbot .chat-message.bot img {
+    width: 40px !important;  /* Ensures fixed avatar size */
+    height: 40px !important;
+    object-fit: contain;
+    border-radius: 50%;
+}
+
+/* === Prevent Empty Chat Messages from Enlarging Avatar === */
+.chatbot .chat-message.bot:empty::after {
+    content: " ";  /* Prevents Gradio from treating empty messages as missing */
+    display: inline-block;
+    visibility: hidden;
 }
 
 """
@@ -271,9 +336,10 @@ html, body {
             chatbot = gr.Chatbot(
                 label="Chatbot",
                 type="messages",
-                avatar_images=["DRP.png","USR.png"],
+                avatar_images=["DRP.png", "USR.png"],
                 min_height=650,
                 min_width=900,
+                height=650,  # Ensures it doesn’t dynamically resize
             )
 
             with gr.Row():
