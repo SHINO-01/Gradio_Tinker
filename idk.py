@@ -52,32 +52,149 @@ def load_chat(selected_index_str, session_list):
     return []
 
 custom_css = """
-.main-row {
-    display: flex !important;
-    flex-grow: 1 !important;
-    width: 100% !important;
+/* === Reset Everything for a Clean Layout === */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
 }
 
-.gradio-container {
-    max-width: 100vw !important;
-    height: 100vh !important;
-    padding: 0 !important;
-    background: #0f172a !important;
+/* === Ensure Full-Screen View Without Overflow === */
+html, body {
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    background-color: #0f172a;
+    color: #f0f0f0;
+    overflow-x: hidden;
+    display: flex;
+}
+
+/* === Fix .wrap to Use Full Width & Add Spacing === */
+.wrap.svelte-1byz9vf {
+    flex-grow: 1;
+    width: 100vw;
+    max-width: 100vw;
+    display: flex;
+    justify-content: flex-start;
+    align-items: stretch;
+    padding: 10px 20px; /* Added spacing */
+    overflow-x: hidden;
+}
+
+/* === Ensure Main Row Uses Full Width & Add Padding === */
+#main-row {
+    display: flex;
+    flex-grow: 1;
+    width: 100vw;
+    max-width: 100vw;
+    padding: 20px 25px; /* Adds comfortable space */
+    gap: 20px; /* Keeps sidebar and main UI spaced properly */
+    overflow-x: hidden;
+}
+
+/* === Sidebar: Fixed Width with Comfortable Padding === */
+.sidebar {
+    flex: 0 0 220px;
+    height: 100vh;
+    background-color: #1e293b;
+    padding: 25px 20px; /* Balanced space inside */
+    border-right: 2px solid #334155;
     display: flex;
     flex-direction: column;
+    align-items: center;
+    border-radius: 10px;
 }
 
-.sidebar {
-    flex: 0 0 220px !important;
-    height: 100%;
-    border-right: 1px solid #4f4f4f;
-    padding-right: 10px;
-    color: #f0f0f0;
+/* Sidebar Header */
+.sidebar h2 {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 20px;
 }
 
+/* New Chat Button */
+.sidebar button {
+    width: 100%;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    padding: 12px;
+    font-size: 14px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.sidebar button:hover {
+    background-color: #2563eb;
+}
+
+/* === Main Chatbot Column: Takes Remaining Space with Padding === */
 .main-column {
-    flex: 1 !important;
+    flex-grow: 1;
+    width: calc(100vw - 250px); /* Keeps it within the viewport */
+    max-width: calc(100vw - 250px);
+    padding: 25px;
+    border-radius: 10px;
+    background-color: #1e293b;
+    overflow-x: hidden;
 }
+
+/* === Chatbot Container: Adds Margins & Rounded Borders === */
+#component-11 {
+    width: 100%;
+    max-width: 100%;
+    min-height: 550px; /* Slightly bigger */
+    border-radius: 12px; /* More rounded */
+    background-color: #0f172a;
+    padding: 20px; /* Adds padding inside */
+    border: 1px solid #334155;
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3); /* Softer shadow */
+    overflow-x: hidden;
+}
+
+/* === Input Field Styling (Spacing & Alignment) === */
+#component-12 {
+    display: flex;
+    align-items: center;
+    background-color: #334155;
+    border-radius: 5px;
+    padding: 12px;
+    margin-top: 20px; /* Space between chat and input */
+    overflow-x: hidden;
+}
+
+/* === Message Input Box === */
+textarea[data-testid="textbox"] {
+    flex-grow: 1;
+    background-color: transparent;
+    border: none;
+    outline: none;
+    color: white;
+    font-size: 16px;
+    padding: 12px;
+}
+
+/* === Send Button (More Padding & Aesthetic Hover Effect) === */
+button.submit-button {
+    background-color: #3b82f6;
+    border: none;
+    padding: 12px 18px; /* Increased padding */
+    font-size: 16px;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease-in-out;
+}
+
+button.submit-button:hover {
+    background-color: #2563eb;
+    transform: scale(1.05);
+}
+
 """
 
 with gr.Blocks(css=custom_css) as demo:

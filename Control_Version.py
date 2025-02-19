@@ -169,21 +169,76 @@ with gr.Blocks(
     head=custom_js,
     theme=gr.themes.Base(primary_hue="blue", neutral_hue="gray", text_size=gr.themes.sizes.text_md),
     css="""
-    .sidebar {
-        min-width: 200px;
-        height: 100%;
-        border-right: 1px solid #4f4f4f;
-        padding-right: 5px;
-        color: #f0f0f0;
-    }
-    .new-chat-btn {
-        background-color: #3a3a3a !important; 
-        color: #f0f0f0 !important;
-        border: 1px solid #4f4f4f !important;
-    }
-    .new-chat-btn:hover {
-        background-color: #4a4a4a !important;
-    }
+
+html, body {
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    background-color: #0f172a; /* Dark theme */
+    color: #f0f0f0;
+    overflow-x: hidden;
+    display: flex;
+    justify-content: center;
+}
+
+#main-row {
+    display: flex !important;
+    flex-grow: 1 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    padding: 15px 20px; /* Adds some space without shifting */
+    gap: 15px; /* Keeps sidebar and content spaced */
+    overflow-x: hidden;
+}
+
+/* === Sidebar Styling === */
+.sidebar {
+    flex: 0 0 220px; /* Fixed width */
+    height: 100%;
+    background-color: #1e293b;
+    padding: 20px;
+    border-right: 2px solid #334155;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-radius: 10px;
+}
+
+/* Sidebar Header */
+.sidebar h2 {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+/* New Chat Button */
+.sidebar button {
+    width: 100%;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    padding: 12px;
+    font-size: 14px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.sidebar button:hover {
+    background-color: #2563eb;
+}
+
+.main-column {
+    flex-grow: 1;
+    width: calc(100vw - 240px) !important; /* Adjusts width correctly */
+    max-width: calc(100vw - 240px) !important;
+    padding: 20px;
+    border-radius: 10px;
+    background-color: #1e293b;
+    overflow-x: hidden;
+}
+
 """
 ) as demo:
     with gr.Row(min_height=700):
