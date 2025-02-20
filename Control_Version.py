@@ -1,6 +1,8 @@
 import gradio as gr
 import datetime
-
+import chromadb
+from sentence_transformers import SentenceTransformer
+#== Work from here============
 # === Simulated RAG Embedding Contexts ===
 RAG_CONTEXTS = {
     "Science": "This chatbot specializes in answering science-related questions.",
