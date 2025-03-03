@@ -52,7 +52,7 @@ def chatbot_response(user_input, chat_history):
     # Append bot message (ensures there's always content)
     updated_history.append({"role": "assistant", "content": bot_reply})
 
-    return updated_history, bot_reply  # Return updated history and bot reply
+    return updated_history, ""  # ✅ Ensures no flickering
 
 # -------------------------------------------
 # Start a new chat, optionally save old one
@@ -62,27 +62,22 @@ def start_new_chat(chat_history, session_list):
 
     if chat_history:
         # Save previous session if not empty
-        chat_name = session_list[0]  # Get the first session (since New Chat is on top)
+        chat_name = session_list[-1]
         chat_sessions[chat_name] = list(chat_history)
+
         print("[DEBUG] Saved session as:", chat_name, "with", len(chat_history), "messages")
 
-    # ✅ Remove existing "New Chat" if it exists
-    if "New Chat" in session_list:
-        session_list.remove("New Chat")
-
-    # ✅ Always insert a new "New Chat" at the top
+    # ✅ Reset chat & create "New Chat" session
     chat_name = "New Chat"
-    session_list.insert(0, chat_name)
+    session_list.append(chat_name)
     chat_sessions[chat_name] = [{"role": "assistant", "content": "🔄 New chat started!"}]
 
-    print(f"[DEBUG] Created new session at the top: {chat_name}")
+    print(f"[DEBUG] Created new session: {chat_name}")
 
     # ✅ Update session list UI
     session_html = create_session_html(session_list)
 
     return [{"role": "assistant", "content": "🔄 New chat started!"}], [], session_list, session_html
-
-
 
 # ---------------------------------------------
 # Load a past chat by index from 'session_list'
@@ -240,19 +235,17 @@ document.addEventListener("click", function(e) {
   if (item && !optionsBtn) {
     console.log("[DEBUG] Clicked .session-item with index:", item.dataset.index);
 
-    // We select the actual <textarea> inside #session-select-callback
     var hiddenBox = document.querySelector("#session-select-callback textarea");
     if (hiddenBox) {
       hiddenBox.value = item.dataset.index;
       console.log("[DEBUG] Setting hidden callback value:", hiddenBox.value);
-      // Dispatch 'input' event to match .input(...) in Python
       hiddenBox.dispatchEvent(new Event("input", { bubbles: true }));
     } else {
       console.log("[DEBUG] #session-select-callback textarea not found!");
     }
   }
 
-  // Handle options button click to toggle modal visibility
+  // Handle options button click to show modal
   if (optionsBtn) {
     console.log("[DEBUG] Options button clicked for session ID:", optionsBtn.dataset.sessionId);
     
@@ -261,52 +254,44 @@ document.addEventListener("click", function(e) {
       return;
     }
 
-    // Toggle visibility of the modal
-    if (modal.style.display === "none" || modal.style.display === "") {
-      console.log("[DEBUG] Showing modal");
-      modal.style.display = "block";  // Show the modal
-      var rect = optionsBtn.getBoundingClientRect();
-      console.log("[DEBUG] Positioning modal at top:", rect.bottom + window.scrollY, "left:", rect.left);
-      // Position the modal just below the options div
-      modal.style.top = (rect.bottom + window.scrollY + 50) + "px";
-      modal.style.left = (rect.left + 40) + "px";  // Align the modal with the options div
-    }
-  } 
-  // Close the modal if it's open and clicked anywhere else
-  else if (modal && modal.style.display === "block") {
-    console.log("[DEBUG] Clicking outside of options button, closing modal.");
-    modal.style.display = "none";  // Close the modal
-  }
+    // Store selected session ID
+    window.selectedSessionId = optionsBtn.dataset.sessionId;
 
-  // Handle rename button click
-  if (e.target.classList.contains('rename-btn')) {
-    var sessionId = optionsBtn ? optionsBtn.dataset.sessionId : null;
-    console.log("[DEBUG] Rename button clicked for session ID:", sessionId);
+    // Show modal
+    modal.style.display = "block";
+  } 
+  else if (modal && modal.style.display === "block") {
+    modal.style.display = "none";  // Close modal if clicking outside
+  }
+});
+
+// Handle rename button click
+document.querySelector(".rename-btn").addEventListener("click", function() {
+  if (window.selectedSessionId !== undefined) {
     var newName = prompt("Enter new session name:");
     if (newName) {
       console.log("[DEBUG] Renaming session:", newName);
 
-      // Rename the session in the backend (Python) logic here
-      
-      // Find the session item div by its sessionId
-      var sessionItem = document.querySelector(`.session-item[data-session-id="${sessionId}"]`);
-      if (sessionItem) {
-        sessionItem.classList.remove('hidden');   // Remove the hidden class to make the session visible
-        sessionItem.classList.add('visible');     // Add 'visible' class to apply display: flex
+      var renameBox = document.querySelector("#session-rename-callback textarea");
+      if (renameBox) {
+        renameBox.value = window.selectedSessionId + "||" + newName;
+        renameBox.dispatchEvent(new Event("input", { bubbles: true }));
       }
-
-      modal.style.display = "none"; // Close modal after renaming
     }
   }
+});
 
-  // Handle delete button click
-  if (e.target.classList.contains('delete-btn')) {
-    var sessionId = optionsBtn ? optionsBtn.dataset.sessionId : null;
-    console.log("[DEBUG] Delete button clicked for session ID:", sessionId);
+// Handle delete button click
+document.querySelector(".delete-btn").addEventListener("click", function() {
+  if (window.selectedSessionId !== undefined) {
     if (confirm("Are you sure you want to delete this session?")) {
-      console.log("[DEBUG] Deleting session with ID:", sessionId);
-      // Implement the delete logic here
-      modal.style.display = "none"; // Close modal after deleting
+      console.log("[DEBUG] Deleting session ID:", window.selectedSessionId);
+
+      var deleteBox = document.querySelector("#session-delete-callback textarea");
+      if (deleteBox) {
+        deleteBox.value = window.selectedSessionId;
+        deleteBox.dispatchEvent(new Event("input", { bubbles: true }));
+      }
     }
   }
 });
@@ -693,50 +678,58 @@ html, body {
             def handle_message(user_input, history, session_list):
                 print("[DEBUG] handle_message triggered with:", user_input)
 
-                user_text = user_input.get("text", "").strip() if isinstance(user_input, dict) else str(user_input).strip()
+                # Ensure user_input is a string
+                if isinstance(user_input, dict):  # If input is multimodal (e.g., file or text)
+                    user_text = user_input.get("text", "").strip()
+                else:
+                    user_text = str(user_input).strip()
 
                 if not user_text:
                     print("[DEBUG] Empty user input. Ignoring.")
                     return history, "", session_list, create_session_html(session_list)
 
-                session_list = list(session_list)  # Convert Gradio state to mutable list
+                session_list = list(session_list)  # Convert Gradio state to a mutable list
 
-                # ✅ Ensure session_list has at least one session
+                # ✅ Ensure "New Chat" exists in session_list
                 if not session_list:
-                    session_list.insert(0, "New Chat")
-                    chat_sessions["New Chat"] = [{"role": "assistant", "content": "🔄 New chat started!"}]
+                    session_list.append("New Chat")
                     print("[DEBUG] Initialized session list with 'New Chat'")
 
-                # ✅ Get the latest session name
-                chat_name = session_list[0]  # Always take the first session
+                # ✅ Ensure "New Chat" exists in chat_sessions
+                if "New Chat" not in chat_sessions:
+                    chat_sessions["New Chat"] = [{"role": "assistant", "content": "🔄 New chat started!"}]
+                    print("[DEBUG] Initialized 'New Chat' in chat_sessions")
 
-                # ✅ Rename "New Chat" based on first user message
+                # ✅ Get the latest session (before renaming)
+                chat_name = session_list[-1]
+
+                # ✅ Rename "New Chat" dynamically based on first user message (ONLY ONCE)
                 if chat_name == "New Chat":
-                    new_name = user_text[:20] + "..."  # Use first 20 characters
-                    session_list[0] = new_name  # ✅ Rename session at index 0
+                    new_name = user_text[:20] + "..."  # Limit to first 20 characters
+                    session_list[-1] = new_name  # ✅ Update the session list with new name
 
-                    # ✅ Move history to new name safely
-                    if "New Chat" in chat_sessions:
-                        chat_sessions[new_name] = chat_sessions.pop("New Chat")
+                    # ✅ Move history safely
+                    if "New Chat" in chat_sessions:  
+                        chat_sessions[new_name] = chat_sessions.pop("New Chat")  # ✅ Safe .pop()
                     else:
-                        chat_sessions[new_name] = []  # Prevent KeyError if missing
+                        chat_sessions[new_name] = []  # ✅ Prevent KeyError if missing
 
                     chat_name = new_name  # ✅ Update reference
                     print(f"[DEBUG] Renamed session to: {chat_name}")
 
                 # ✅ Process chatbot response
-                new_history, _ = chatbot_response(user_text, history)  # This already appends user message
+                new_history, _ = chatbot_response(user_text, history)
 
-                # ✅ Save session history
+                # ✅ Append the user's message correctly
+                new_history.append({"role": "user", "content": user_text})
+
+                # ✅ Save chat history under the correct session
                 chat_sessions[chat_name] = new_history
 
-                # ✅ Create session div only after the first message
-                if chat_name not in chat_sessions or len(chat_sessions[chat_name]) == 1:
-                    # The session div is created dynamically here for the first time
-                    session_html = create_session_html(session_list)
+                # ✅ Update session HTML dynamically
+                session_html = create_session_html(session_list)
 
-                return new_history, "", session_list, session_html  # ✅ Return updated values
-
+                return new_history, "", session_list, session_html  # ✅ Return updated chat history and session HTML
 
             message_input.submit(
                 handle_message,

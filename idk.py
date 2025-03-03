@@ -2,64 +2,23 @@ import gradio as gr
 import datetime
 import chromadb
 from sentence_transformers import SentenceTransformer
-import json
-
-chroma_client = chromadb.PersistentClient(path="./chroma_db")
-collection = chroma_client.get_or_create_collection("chat_sessions")
-
-# Load the embedding model
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-# Global variable to track the current active session
-active_session_name = None  # Stores the name of the loaded session
-
-def store_chat_session(session_name, chat_history):
-    if not chat_history:
-        return
-
-    chat_texts = [f"{msg['role']}: {msg['content']}" for msg in chat_history]
-    session_text = " ".join(chat_texts)
-    embedding = embedding_model.encode(session_text).tolist()
-
-    # Check if session exists
-    existing_sessions = collection.get([session_name])
-
-    if existing_sessions["ids"]:  # Update existing session
-        collection.update(
-            ids=[session_name],
-            embeddings=[embedding],
-            metadatas=[{"session_name": session_name, "history": json.dumps(chat_history)}]
-        )
-        print(f"[DEBUG] Updated session: {session_name}")
-    else:  # Add new session
-        collection.add(
-            ids=[session_name],
-            embeddings=[embedding],
-            metadatas=[{"session_name": session_name, "history": json.dumps(chat_history)}]
-        )
-        print(f"[DEBUG] Stored new session: {session_name}")
-
-def get_all_sessions():
-    results = collection.get()
-    if results and results["metadatas"]:
-        return [meta["session_name"] for meta in results["metadatas"]]
-    return []
-
-def retrieve_similar_sessions(query):
-    query_embedding = embedding_model.encode(query).tolist()
-    results = collection.query(query_embeddings=[query_embedding], n_results=3)
-
-    if results and results["metadatas"][0]:
-        return [json.loads(meta["history"]) for meta in results["metadatas"][0]]
-    
-    return []
-
+import base64
+#== Work from here============
 # === Simulated RAG Embedding Contexts ===
 RAG_CONTEXTS = {
     "Science": "This chatbot specializes in answering science-related questions.",
     "History": "This chatbot provides insights into historical events and figures.",
     "Technology": "This chatbot discusses the latest advancements in technology.",
 }
+
+with open("W3_Nobg.png", "rb") as img_file:
+    base64_str = base64.b64encode(img_file.read()).decode()
+
+markdown_content = f"""
+<h1 style="display: flex; align-items: center; gap: 10px;">
+    <img src="data:image/png;base64,{base64_str}" width="40"/>W3 BrainBot
+</h1>
+"""
 
 # Global storage for saved chat sessions
 chat_sessions = {}
@@ -109,67 +68,45 @@ def chatbot_response(user_input, chat_history, selected_context):
 # Start a new chat, optionally save old one
 # -------------------------------------------
 def start_new_chat(selected_context, chat_history, session_list):
-    global active_session_name  # Reset active session
-
+    print("[DEBUG] start_new_chat() triggered with context=", selected_context)
+    
     if chat_history:
-        if active_session_name:  # If editing an existing chat, update it
-            store_chat_session(active_session_name, chat_history)
-        else:  # Otherwise, create a new chat session
-            chat_name = generate_chat_name()
-            store_chat_session(chat_name, chat_history)
-            session_list.append(chat_name)
+        # Save previous session if not empty
+        chat_name = generate_chat_name()
+        chat_sessions[chat_name] = list(chat_history)
+        session_list = list(session_list)
+        session_list.append(chat_name)
 
-    active_session_name = None  # Reset since it's a new chat
+        print("[DEBUG] Saved session as:", chat_name, "with", len(chat_history), "messages")
 
     welcome_message = f"🔄 New chat started with **{selected_context}** context!"
-    return [{"role": "assistant", "content": welcome_message}], [], session_list, create_session_html(session_list)
+    
+    # Update session HTML
+    session_html = create_session_html(session_list)
+    
+    # Fresh chat: assistant greeting
+    new_chat = [{"role": "assistant", "content": welcome_message}]
+    
+    # Return new chat, cleared chat_history, updated session_list, updated HTML
+    return new_chat, [], session_list, session_html
 
 # ---------------------------------------------
 # Load a past chat by index from 'session_list'
 # ---------------------------------------------
-# Function to retrieve and set the active session
 def load_chat(selected_index_str, session_list):
-    global active_session_name
-
-    if session_list:
-        session_name = session_list[int(selected_index_str)]
-        results = collection.get([session_name])
-
-        if results["metadatas"]:
-            active_session_name = session_name  # Set active session
-            print(f"[DEBUG] Loaded session: {session_name}")
-            return json.loads(results["metadatas"][0]["history"])
-
-    return []
-
-
-def handle_message(user_input, history, context):
-    global active_session_name
-
-    new_history, _ = chatbot_response(user_input, history, context)
-
-    if active_session_name:  # If editing an existing chat, update it
-        store_chat_session(active_session_name, new_history)
-
-    return new_history, ""
-def preload_sessions():
-    sessions = get_all_sessions()
-    session_html = create_session_html(sessions)
-    return sessions, session_html
-
-# Function to restore last active chat session on refresh
-def restore_last_chat():
-    global active_session_name
-
-    sessions = get_all_sessions()
-    if sessions:
-        active_session_name = sessions[-1]  # Load the latest session
-        results = collection.get([active_session_name])
-        if results["metadatas"]:
-            print(f"[DEBUG] Restoring last session: {active_session_name}")
-            return json.loads(results["metadatas"][0]["history"]), active_session_name, sessions, create_session_html(sessions)
-
-    return [], None, sessions, create_session_html(sessions)
+    print("[DEBUG] load_chat() triggered with selected_index_str=", selected_index_str)
+    
+    try:
+        idx = int(selected_index_str)
+        if 0 <= idx < len(session_list):
+            chat_name = session_list[idx]
+            print("[DEBUG] Loading chat_name =", chat_name)
+            if chat_name in chat_sessions:
+                return chat_sessions[chat_name]
+    except (ValueError, TypeError):
+        print("[DEBUG] Invalid index or parse error.")
+    
+    return []  # Return empty if invalid selection
 
 # ---------------------------------------------
 # Build HTML for sessions (sidebar list)
@@ -262,14 +199,25 @@ with gr.Blocks(
     max-width: 100vw !important;
 }
 
+footer {
+    display: none !important;
+    visibility: hidden !important;
+    position: absolute !important;
+    height: 0 !important;
+    width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+
 /* === Ensure Full-Screen View Without Overflow === */
 html, body {
     width: 100vw;
     height: 100vh;
     max-width: 100vw;
     max-height: 100vh;
-    background-color: #0f172a;
-    color: #f0f0f0;
+    background-color: #090f1c;
+    color: #090f1c;
     overflow-x: hidden !important; /* Prevents overflow */
     display: flex;
     justify-content: flex-start; /* Ensures everything starts from left */
@@ -283,9 +231,16 @@ html, body {
     display: flex !important;
     justify-content: flex-start !important;
     align-items: stretch !important;
-    padding-right: 15px !important; /* FIX: Adds right space without overflow */
+    padding-right: 0px !important; /* FIX: Adds right space without overflow */
     margin: 0 !important;
     overflow-x: hidden !important;
+    background-color: #090f1c;
+    margin-left: 0px;
+}
+
+.fillable.svelte-69rnjb{
+    margin-left: 0px !important;
+    padding: 0px !important;
 }
 
 /* === Ensure Parent Container Fully Expands But Doesn't Overflow === */
@@ -297,8 +252,10 @@ html, body {
     justify-content: flex-start !important;
     align-items: stretch !important;
     overflow-x: hidden !important;
-    padding-right: 50px !important; /* FIX: Adds right padding */
+    padding-right: 0px !important; /* FIX: Adds right padding */
     margin: 0 !important;
+    background-color: #090f1c;
+    padding-bottom: 0px !important;
 }
 
 /* === Ensure Main Row Uses Full Width Without Overflow === */
@@ -311,19 +268,21 @@ html, body {
     gap: 0px;
     overflow-x: hidden !important;
     padding-right: 15px !important; /* FIX: Right space without causing overflow */
+    background-color: #090f1c;
 }
 
 /* === Sidebar (No Changes, Just Ensuring Proper Width) === */
 .sidebar {
     flex: 0 0 220px;
     height: 100%;
-    background-color: #1e293b;
+    background-color: #090f1c;
     padding: 20px;
-    border-right: 2px solid #334155;
+    border-right: 3px solid #1e2d4f;
     display: flex;
     flex-direction: column;
     align-items: center;
 }
+
 
 /* === Ensure Main Column Fills Remaining Space Properly with Padding Instead of Margin === */
 .main-column {
@@ -331,8 +290,7 @@ html, body {
     width: calc(100vw - 220px) !important; /* FIX: Ensure no overflow */
     max-width: calc(100vw - 220px) !important;
     padding-right: 15px !important; /* FIX: Adds right spacing without overflow */
-    border-radius: 10px;
-    background-color: #1e293b;
+    background-color: #090f1c;
     overflow-x: hidden;
 }
 
@@ -342,113 +300,228 @@ html, body {
     max-width: 100% !important;
     min-width: 100% !important;
     min-height: 100%;
-    border-radius: 12px;
-    background-color: #0f172a;
-    padding-right: 15px !important; /* FIX: Adds right spacing */
-    border: 1px solid #334155;
-    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3);
+    border: 1px solid #090f1c;
+    background-color: #090f1c;
+    padding-right: 300px !important; /* FIX: Adds right spacing */
+    padding-left: 300px !important; /* FIX: Adds left spacing */
     overflow-x: hidden;
 }
 
 /* === FINAL FIX: Force App to Stay Within Screen But Allow Right Padding === */
 #component-0.column.svelte-vt1mxs {
-    width: 100% !important; /* FIX: Ensures correct width */
+    width: 100% !important;
     max-width: 100vw !important;
-    flex-grow: 1 !important;
+    flex-grow: 1 !important;  /* Ensures it fills available space */
+    flex-shrink: 0 !important;
     overflow-x: hidden !important;
-    padding-right: 15px !important; /* FIX: Adds right spacing */
-}
-/* === Fix Avatar Size Flickering === */
-.chatbot .chat-message.bot img {
-    width: 40px !important;  /* Adjust based on your avatar */
-    height: 40px !important;
-    object-fit: contain;
-    border-radius: 50%;
-}
-.chatbot .chat-message.bot img {
-    width: 40px !important;  /* Ensures fixed avatar size */
-    height: 40px !important;
-    object-fit: contain;
-    border-radius: 50%;
+    padding: 0px !important; /* Remove any unnecessary padding */
+    margin: 0px !important;  /* Remove extra margins */
+    height: 100vh !important; /* Set to full viewport height */
+    min-height: 100vh !important; /* Ensure it stretches */
+    display: flex !important;
+    flex-direction: column !important;
 }
 
-/* === Prevent Empty Chat Messages from Enlarging Avatar === */
-.chatbot .chat-message.bot:empty::after {
-    content: " ";  /* Prevents Gradio from treating empty messages as missing */
-    display: inline-block;
-    visibility: hidden;
+
+#component-1{
+    padding-top: 0px;
+    margin-top: 0px;
 }
 
+.html-container.svelte-phx28p.padding{
+    padding: 0px;
+}
+
+#component-9{
+    border: 0px;
+    margin-right:20px;
+}
+
+.svelte-633qhp{
+    margin-top: 0px !important;
+    background-color: #090f1c !important;
+    display: flex !important;
+    justify-content: flex-start !important; /* Align items to the left */
+    align-items: center !important;
+    width: 210px;
+    height: 80px;
+    padding: 0px;
+    border: 1px solid #090f1c;
+}
+
+/*================================Selector De Context================================*/
+/* === Make Context Selector Shorter & Blend In === */
+#context-selector {
+    width: 200px !important; /* Adjust width to your preference */
+    min-width: 200px !important;
+    max-width: 200px !important;
+    background-color: #090f1c !important; /* Hide background */
+    color: #ffffff !important; /* Ensure text is visible */
+    padding: 0px !important; /* Adjust padding */
+    align-items: left !important;
+    height: 50px !important;
+}
+
+/* === Hide Inner Background but Keep Text & Border === */
+#context-selector .svelte-1hfxrpf.container {
+    background-color: #090f1c !important;
+}
+
+/* === Style the Input Box Inside Selector === */
+#context-selector input {
+    background-color: #090f1c !important; /* Transparent background */
+    color: #ffffff !important; /* Text color */
+    height: 40px !important; /* Adjust height */
+    font-size: 18px !important; /* Adjust text size */
+}
+
+/* === Style the Dropdown Arrow to Blend In === */
+#context-selector .icon-wrap svg {
+    fill: #ffffff !important; /* Change arrow color */
+    opacity: 0.7 !important; /* Slight transparency */
+}
+
+/* === Ensure Proper Layout === */
+#context-selector .wrap {
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 0 !important;
+}
+
+/* === Remove Any Extra Margins/Padding === */
+#context-selector .wrap,
+#context-selector .wrap-inner,
+#context-selector .secondary-wrap {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/*=====================================Fin===========================================*/
+
+#component-12{
+    border: 0px !important;
+    background-color: #090f1c !important;
+    padding: 0px 350px !important;
+}
+
+.wrapper.svelte-g3p8na {
+    background-color: #090f1c !important;
+    border-color: #090f1c !important;
+}
+
+/* Change chat area background */
+.bubble-wrap.svelte-gjtrl6 {
+    background-color: #090f1c !important;
+    border-color: #090f1c; !important
+}
+#message-input{
+    height: 100%;
+    border-radius: 12px;
+    border: 2px solid red;
+}
+.svelte-d47mdf{
+    padding: 10px 5px;
+}
+/* Change chatbot message background */
 """
 ) as demo:
-    with gr.Blocks() as demo:
-        with gr.Row(min_height=700):
-            with gr.Column(scale=1, elem_classes=["sidebar"], min_width=250):
-                gr.Markdown("## 📁 Chat History")
+    with gr.Row(min_height=700):
+        # -------------- Sidebar --------------
+        with gr.Column(scale=1, elem_classes=["sidebar"], min_width=250):
+            gr.Markdown(markdown_content)
 
-                new_chat_btn = gr.Button("➕ New Chat", elem_classes=["new-chat-btn"])
-                session_list = gr.State([])  # Stores list of past sessions
-                session_html = gr.HTML("<div class='session-list'>No saved chats yet</div>")
-                active_session_state = gr.State(None)  # Stores active session name
+            new_chat_btn = gr.Button("➕ New Chat", elem_classes=["new-chat-btn"])
+            session_list = gr.State([])  
+            session_html = gr.HTML("<div class='session-list'>No saved chats yet</div>")
+            
+            # Hidden textbox for session selection
+            # Must have interactive=True + the correct elem_id
+            session_select_callback = gr.Textbox(
+                elem_id="session-select-callback", 
+                visible=False,
+                interactive=True
+            )
 
-                session_select_callback = gr.Textbox(
-                    elem_id="session-select-callback",
-                    visible=False,
-                    interactive=True
+        # -------------- Main Chat UI --------------
+        with gr.Column(min_width=1100,scale=30, elem_classes=["main-chat-ui"]):
+
+            context_selector = gr.Dropdown(
+                choices=list(RAG_CONTEXTS.keys()),
+                value="Science",
+                show_label=False,
+                elem_id="context-selector",
+            )
+
+            chatbot = gr.Chatbot(
+                show_label=False,
+                type="messages",
+                min_height=750,
+                min_width=600,
+                height=650,  # Ensures it doesn’t dynamically resize
+            )
+
+            with gr.Row():
+                message_input = gr.MultimodalTextbox(
+                    show_label=False, 
+                    placeholder="Type your message here...",
+                    file_types=[".pdf", ".txt", ".png", ".jpg", ".jpeg"],
+                    scale=10,
+                    elem_id="message-input",
                 )
 
-            with gr.Column(min_width=1100, scale=30):
-                gr.Markdown("# 🤖 Chatbot with RAG Embedding Context")
+            chat_history = gr.State([])
 
-                context_selector = gr.Dropdown(
-                    choices=list(RAG_CONTEXTS.keys()),
-                    value="Science",
-                    label="Select Embedding Context"
-                )
+            # --- Send message handler ---
+            def handle_message(user_input, history, context):
+                print("[DEBUG] handle_message triggered.")
+                new_history, _ = chatbot_response(user_input, history, context)
+                return new_history, ""
 
-                chatbot = gr.Chatbot(label="Chatbot", type="messages")
-                message_input = gr.Textbox(placeholder="Type your message here...")
-                send_btn = gr.Button("Send")
+            # -- Pressing Enter in the message_input
+            message_input.submit(
+                handle_message,
+                inputs=[message_input, chat_history, context_selector],
+                outputs=[chatbot, message_input]
+            ).then(
+                lambda x: x,
+                inputs=[chatbot],
+                outputs=[chat_history]
+            )
 
-                chat_history = gr.State([])
+            # -- Changing context => new chat
+            context_selector.change(
+                start_new_chat,
+                inputs=[context_selector, chat_history, session_list],
+                outputs=[chatbot, chat_history, session_list, session_html]
+            )
 
-                # -- Load stored sessions on app launch --
-                demo.load(preload_sessions, outputs=[session_list, session_html])
+            # -- "New Chat" button
+            new_chat_btn.click(
+                start_new_chat,
+                inputs=[context_selector, chat_history, session_list],
+                outputs=[chatbot, chat_history, session_list, session_html]
+            )
 
-                # -- Restore last session after refresh --
-                demo.load(
-                    restore_last_chat,
-                    outputs=[chatbot, active_session_state, session_list, session_html]
-                )
+            # -- Loading a past session
+            #   session_select_callback is triggered by JS dispatchEvent("input")
+            session_select_callback.input(
+                load_chat,
+                inputs=[session_select_callback, session_list],
+                outputs=[chatbot]
+            ).then(
+                lambda x: x,
+                inputs=[chatbot],
+                outputs=[chat_history]
+            )
 
-                # -- Send message handler --
-                send_btn.click(
-                    handle_message,
-                    inputs=[message_input, chat_history, context_selector],
-                    outputs=[chatbot, message_input]
-                ).then(
-                    lambda x: x,
-                    inputs=[chatbot],
-                    outputs=[chat_history]
-                )
+            # -- On initial load, show a welcome
+            demo.load(
+                lambda: [{"role": "assistant", "content": "👋 Welcome! This chatbot uses the **Science** context."}],
+                outputs=[chatbot]
+            ).then(
+                lambda x: x,
+                inputs=[chatbot],
+                outputs=[chat_history]
+            )
 
-                # -- Start new chat handler --
-                new_chat_btn.click(
-                    start_new_chat,
-                    inputs=[context_selector, chat_history, session_list],
-                    outputs=[chatbot, chat_history, session_list, session_html]
-                )
-
-                # -- Load past session handler --
-                session_select_callback.input(
-                    load_chat,
-                    inputs=[session_select_callback, session_list],
-                    outputs=[chatbot]
-                ).then(
-                    lambda x: x,
-                    inputs=[chatbot],
-                    outputs=[chat_history]
-                )
-
-    demo.launch()
-
+demo.launch(favicon_path='W3_Nobg.png', server_name="192.168.0.227", server_port=8000)

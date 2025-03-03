@@ -52,7 +52,7 @@ def chatbot_response(user_input, chat_history):
     # Append bot message (ensures there's always content)
     updated_history.append({"role": "assistant", "content": bot_reply})
 
-    return updated_history, bot_reply  # Return updated history and bot reply
+    return updated_history, ""  # ✅ Ensures no flickering
 
 # -------------------------------------------
 # Start a new chat, optionally save old one
@@ -285,16 +285,7 @@ document.addEventListener("click", function(e) {
     var newName = prompt("Enter new session name:");
     if (newName) {
       console.log("[DEBUG] Renaming session:", newName);
-
-      // Rename the session in the backend (Python) logic here
-      
-      // Find the session item div by its sessionId
-      var sessionItem = document.querySelector(`.session-item[data-session-id="${sessionId}"]`);
-      if (sessionItem) {
-        sessionItem.classList.remove('hidden');   // Remove the hidden class to make the session visible
-        sessionItem.classList.add('visible');     // Add 'visible' class to apply display: flex
-      }
-
+      // Implement the renaming logic here
       modal.style.display = "none"; // Close modal after renaming
     }
   }
@@ -311,7 +302,6 @@ document.addEventListener("click", function(e) {
   }
 });
 </script>
-
 """
 
 # =============================================
@@ -730,10 +720,8 @@ html, body {
                 # ✅ Save session history
                 chat_sessions[chat_name] = new_history
 
-                # ✅ Create session div only after the first message
-                if chat_name not in chat_sessions or len(chat_sessions[chat_name]) == 1:
-                    # The session div is created dynamically here for the first time
-                    session_html = create_session_html(session_list)
+                # ✅ Update session list HTML
+                session_html = create_session_html(session_list)
 
                 return new_history, "", session_list, session_html  # ✅ Return updated values
 
