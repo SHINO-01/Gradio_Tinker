@@ -770,5 +770,5 @@ html, body {
                 outputs=[new_chat_btn]
             )
 
-demo.launch(favicon_path='W3_Nobg.png', server_name="192.168.0.227", server_port=8000)
+demo.launch(favicon_path='W3_Nobg.png', server_name="192.168.0.35", server_port=8000)
 # , server_name="192.168.0.227", server_port=8000
