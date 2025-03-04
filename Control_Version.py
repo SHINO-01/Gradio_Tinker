@@ -154,6 +154,7 @@ def create_session_html(sessions):
     color: #f0f0f0;
     border: 1px solid #090f1c;
     margin-top: -3px;
+    position: relative;
 }
 
 .options {
@@ -165,6 +166,12 @@ def create_session_html(sessions):
     padding-top: 2px;
     border-radius: 20px;
     transition: border 0.3s;
+    display: none; /* Hide by default */
+    transition: opacity 0.3s ease-in-out;
+}
+
+.session-item:hover .options {
+    display: block; /* Show on hover */
 }
 
 .options:hover {

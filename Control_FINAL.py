@@ -1,6 +1,5 @@
 import gradio as gr
 import datetime
-from sentence_transformers import SentenceTransformer
 import base64
 import time
 
