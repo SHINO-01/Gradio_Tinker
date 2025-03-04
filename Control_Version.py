@@ -104,131 +104,139 @@ def load_chat(selected_index_str, session_list):
 # ---------------------------------------------
 def create_session_html(sessions):
     print("[DEBUG] create_session_html() with sessions=", sessions)
-    
+
+    # If no sessions, just return an empty container
     if not sessions:
         return "<div class='session-list'></div>"
-    
+
+    # Open the main session-list container once
     html = "<div class='session-list'>"
     for i, session in enumerate(sessions):
-        html += f"""
-        <div class="session-list">
-            <div class="session-item" data-index="0">
-                <div class="session-name">{session}</div>
-                <div class="options" data-session-id={i}>⁝</div>
-            </div>
-            <!-- No modal here anymore -->
-        </div>
+        # 1) Skip “New Chat” so it won’t be displayed
+        if session == "New Chat":
+            continue
 
-        <!-- Independent modal that is outside of session items -->
-        <div id="modal" class="modal">
-            <div class="modal-content">
-                <button class="rename-btn">Rename</button>
-                <button class="delete-btn">Delete</button>
-            </div>
-        </div>      
+        html += f"""
+        <div class="session-item" data-index="{i}">
+            <div class="session-name">{session}</div>
+            <div class="options" data-session-id="{i}">⁝</div>
+        </div>
         """
+
+    # Close out the session-list container
     html += "</div>"
-    
+
+    # Single (global) modal element (not nested in each item)
+    html += """
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <button class="rename-btn">Rename</button>
+            <button class="delete-btn">Delete</button>
+        </div>
+    </div>
+    """
+
     # Minimal inline CSS for styling
     html += """
     <style>
+    .session-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0px;
+        width: 100%;
+        margin-top: 10px;
+        color: #f0f0f0;
+        text-align: left;
+    }
 
-.session-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0px;
-    width: 100%;
-    margin-top: 10px;
-    color: #f0f0f0;
-    text-align: left;
-}
+    .session-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px;
+        border-radius: 5px;
+        background-color: #090f1c;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        color: #f0f0f0;
+        border: 1px solid #090f1c;
+        margin-top: -3px;
+        position: relative;
+    }
 
-.session-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px;
-    border-radius: 5px;
-    background-color: #090f1c;
-    cursor: pointer;
-    transition: background-color 0.3s;
-    color: #f0f0f0;
-    border: 1px solid #090f1c;
-    margin-top: -3px;
-    position: relative;
-}
+    .options {
+        margin: 0px;
+        width: 5%;
+        text-align: center;
+        font-size: 18px;
+        font-weight: 600;
+        padding-top: 2px;
+        border-radius: 20px;
+        transition: border 0.3s;
+        display: none; /* hide by default */
+        transition: opacity 0.3s ease-in-out;
+    }
 
-.options {
-    margin: 0px;
-    width: 5%;
-    text-align: center;
-    font-size: 18px;
-    font-weight: 600;
-    padding-top: 2px;
-    border-radius: 20px;
-    transition: border 0.3s;
-    display: none; /* Hide by default */
-    transition: opacity 0.3s ease-in-out;
-}
+    .session-item:hover .options {
+        display: block; /* show on hover */
+    }
 
-.session-item:hover .options {
-    display: block; /* Show on hover */
-}
+    .options:hover {
+        font-weight: 800;
+    }
 
-.options:hover {
-    font-weight: 800;
-}
+    .session-item:hover {
+        background-color: #4a4a4a;
+    }
 
-.session-item:hover {
-    background-color: #4a4a4a;
-}
+    .session-name {
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        margin-top: 5px;
+        text-overflow: ellipsis;
+        margin-left: 8px;
+        width: 80%;
+    }
 
-.session-name {
-    font-size: 14px;
-    white-space: nowrap;
-    overflow: hidden;
-    margin-top: 5px;
-    text-overflow: ellipsis;
-    margin-left: 8px;
-    width: 80%;
-}
+    /* Modal Styles */
+    .modal {
+        display: none; /* Hide the modal by default */
+        position: fixed; /* Position it fixed at the topmost level */
+        top: 0px;
+        left: 0px;
+        transform: translate(-50%, -50%); /* Center it on the screen */
+        background-color: #333;
+        border-radius: 5px;
+        padding: 20px;
+        color: #fff;
+        z-index: 9999; /* Ensure it is on top */
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    }
 
-/* Modal Styles */
-.modal {
-    display: none; /* Hide the modal by default */
-    position: fixed; /* Position it fixed at the topmost level */
-    top: 0px;
-    left: 0px;
-    transform: translate(-50%, -50%); /* Center it on the screen */
-    background-color: #333;
-    border-radius: 5px;
-    padding: 20px;
-    color: #fff;
-    z-index: 9999; /* Ensure it is on top */
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-}
+    .modal-content {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
 
-.modal-content {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
+    .rename-btn, .delete-btn {
+        margin: 5px 0;
+        padding: 8px;
+        border-radius: 5px;
+        background-color: #5e5e5e;
+        color: white;
+        border: none;
+        cursor: pointer;
+    }
 
-.rename-btn, .delete-btn {
-    margin: 5px 0;
-    padding: 8px;
-    border-radius: 5px;
-    background-color: #5e5e5e;
-    color: white;
-    border: none;
-    cursor: pointer;
-}
-
-.rename-btn:hover, .delete-btn:hover {
-    background-color: #4c4c4c;
-}
-
+    .rename-btn:hover, .delete-btn:hover {
+        background-color: #4c4c4c;
+    }
+    </style>
     """
+
     return html
+
 
 # ----------------------------------------------
 # JavaScript snippet in <head>, using <script> tags

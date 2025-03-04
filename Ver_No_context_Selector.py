@@ -1,8 +1,5 @@
 import gradio as gr
-import datetime
-from sentence_transformers import SentenceTransformer
 import base64
-import time
 
 # === Work from here============
 # Global storage for saved chat sessions
@@ -20,7 +17,6 @@ markdown_content = f"""
 # Generate a unique chat session name
 def generate_chat_name():
     return "New Chat"  # ✅ Always start with "New Chat"
-
 
 # -------------------------------
 # Chatbot response function
@@ -52,7 +48,7 @@ def chatbot_response(user_input, chat_history):
     # Append bot message (ensures there's always content)
     updated_history.append({"role": "assistant", "content": bot_reply})
 
-    return updated_history, ""  # ✅ Ensures no flickering
+    return updated_history, bot_reply  # Return updated history and bot reply
 
 # -------------------------------------------
 # Start a new chat, optionally save old one
@@ -62,17 +58,20 @@ def start_new_chat(chat_history, session_list):
 
     if chat_history:
         # Save previous session if not empty
-        chat_name = session_list[-1]
+        chat_name = session_list[0]  # Get the first session (since New Chat is on top)
         chat_sessions[chat_name] = list(chat_history)
-
         print("[DEBUG] Saved session as:", chat_name, "with", len(chat_history), "messages")
 
-    # ✅ Reset chat & create "New Chat" session
+    # ✅ Remove existing "New Chat" if it exists
+    if "New Chat" in session_list:
+        session_list.remove("New Chat")
+
+    # ✅ Always insert a new "New Chat" at the top
     chat_name = "New Chat"
-    session_list.append(chat_name)
+    session_list.insert(0, chat_name)
     chat_sessions[chat_name] = [{"role": "assistant", "content": "🔄 New chat started!"}]
 
-    print(f"[DEBUG] Created new session: {chat_name}")
+    print(f"[DEBUG] Created new session at the top: {chat_name}")
 
     # ✅ Update session list UI
     session_html = create_session_html(session_list)
@@ -84,7 +83,7 @@ def start_new_chat(chat_history, session_list):
 # ---------------------------------------------
 def load_chat(selected_index_str, session_list):
     print("[DEBUG] load_chat() triggered with selected_index_str=", selected_index_str)
-    
+
     try:
         idx = int(selected_index_str)
         if 0 <= idx < len(session_list):
@@ -94,7 +93,7 @@ def load_chat(selected_index_str, session_list):
                 return chat_sessions[chat_name]
     except (ValueError, TypeError):
         print("[DEBUG] Invalid index or parse error.")
-    
+
     return []  # Return empty if invalid selection
 
 # ---------------------------------------------
@@ -102,45 +101,78 @@ def load_chat(selected_index_str, session_list):
 # ---------------------------------------------
 def create_session_html(sessions):
     print("[DEBUG] create_session_html() with sessions=", sessions)
-    
+
+    # If no sessions, just return an empty container
     if not sessions:
         return "<div class='session-list'></div>"
-    
+
+    # Open the main session-list container once
     html = "<div class='session-list'>"
     for i, session in enumerate(sessions):
-        html += f"""
-        <div class="session-list">
-            <div class="session-item" data-index="0">
-                <div class="session-name">{session}</div>
-                <div class="options" data-session-id={i}>⁝</div>
-            </div>
-            <!-- No modal here anymore -->
-        </div>
+        # Skip "New Chat" so it doesn't show until renamed
+        if session == "New Chat":
+            continue
 
-        <!-- Independent modal that is outside of session items -->
-        <div id="modal" class="modal">
-            <div class="modal-content">
-                <button class="rename-btn">Rename</button>
-                <button class="delete-btn">Delete</button>
-            </div>
-        </div>      
+        html += f"""
+        <div class="session-item" data-index="{i}">
+            <div class="session-name">{session}</div>
+            <div class="options" data-session-id="{i}">⁝</div>
+        </div>
         """
+    # Close out the session-list container
     html += "</div>"
-    
+
+    # Single (global) modal element (not nested in each item)
+    html += """
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <button class="rename-btn">Rename</button>
+            <button class="delete-btn">Delete</button>
+        </div>
+    </div>
+    """
+
     # Minimal inline CSS for styling
     html += """
     <style>
-
-.session-list {
+/* Sidebar containing session list */
+/* Ensure the main container is a flexbox with 100% height */
+.main-container {
     display: flex;
-    flex-direction: column;
-    gap: 0px;
-    width: 100%;
-    margin-top: 10px;
-    color: #f0f0f0;
-    text-align: left;
+    height: 100vh;  /* Ensure full screen height */
+    width: 100%;    /* Ensure full width */
 }
 
+/* Sidebar settings */
+.sidebar {
+    display: flex;  /* Maintain flexbox behavior */
+    flex-direction: column;  /* Stack children vertically */
+    flex: 0 0 220px;   /* Fixed width for the sidebar */
+    height: 100vh;     /* Ensure sidebar fills the screen height */
+    background-color: #090f1c;
+    padding: 20px;
+    border-right: 3px solid #1e2d4f;
+    align-items: center;
+    overflow-x: hidden; /* Prevent horizontal overflow */
+    overflow-y: auto;   /* Allow vertical scrolling */
+    box-sizing: border-box;
+}
+
+/* Session list container with scrolling enabled */
+.session-list {
+    display: flex;
+    flex-direction: column; /* Stack session items vertically */
+    gap: 0px;
+    width: 100%;  /* Ensure the width is 100% */
+    margin-top: 10px;
+    color: #f0f0f0;
+    text-align: left; /* Allow the list to grow but not exceed the sidebar height */
+    overflow-y: auto; /* Enable vertical scrolling */
+    max-height: calc(100vh - 40px);  /* Set max height, considering padding */
+    padding-right: 5px;  /* Optional padding to make it visually cleaner */
+}
+
+/* Session item styling */
 .session-item {
     display: flex;
     justify-content: space-between;
@@ -151,9 +183,12 @@ def create_session_html(sessions):
     transition: background-color 0.3s;
     color: #f0f0f0;
     border: 1px solid #090f1c;
-    margin-top: -3px;
+    margin-top: -2px;
+    position: relative;
+    flex-shrink: 0;  /* Prevent shrinking, so items maintain their size */
 }
 
+/* Options button inside each session */
 .options {
     margin: 0px;
     width: 5%;
@@ -163,8 +198,16 @@ def create_session_html(sessions):
     padding-top: 2px;
     border-radius: 20px;
     transition: border 0.3s;
+    display: none; /* Hide by default */
+    transition: opacity 0.3s ease-in-out;
 }
 
+/* Show options button on hover */
+.session-item:hover .options {
+    display: block; /* Show on hover */
+}
+
+/* Hover effects for session item */
 .options:hover {
     font-weight: 800;
 }
@@ -173,6 +216,7 @@ def create_session_html(sessions):
     background-color: #4a4a4a;
 }
 
+/* Session name in each item */
 .session-name {
     font-size: 14px;
     white-space: nowrap;
@@ -217,13 +261,66 @@ def create_session_html(sessions):
 .rename-btn:hover, .delete-btn:hover {
     background-color: #4c4c4c;
 }
-
+    </style>
     """
+
     return html
 
-# ----------------------------------------------
-# JavaScript snippet in <head>, using <script> tags
-# ----------------------------------------------
+# =============================================
+#    Gradio UI Setup with Blocks
+# =============================================
+
+def handle_message(user_input, history, session_list):
+    print("[DEBUG] handle_message triggered with:", user_input)
+
+    # Convert Gradio state to a mutable list
+    session_list = list(session_list)
+
+    # Extract user text from user_input (could be dict if a file was uploaded)
+    user_text = ""
+    if isinstance(user_input, dict):
+        user_text = user_input.get("text", "").strip()
+    else:
+        user_text = str(user_input).strip()
+
+    # If user typed nothing, return early
+    if not user_text:
+        # define session_html so it won't be undefined
+        session_html = create_session_html(session_list)
+        print("[DEBUG] Empty user input. Returning.")
+        return history, "", session_list, session_html
+
+    # Ensure session_list has at least one session
+    if not session_list:
+        session_list.insert(0, "New Chat")
+        chat_sessions["New Chat"] = [{"role": "assistant", "content": "🔄 New chat started!"}]
+        print("[DEBUG] Initialized session list with 'New Chat'")
+
+    # The latest session name
+    chat_name = session_list[0]
+
+    # If it's still "New Chat", rename it to first 20 chars of user_text
+    if chat_name == "New Chat":
+        new_name = user_text[:20] + "..."  # up to 20 chars + "..."
+        session_list[0] = new_name
+        if "New Chat" in chat_sessions:
+            chat_sessions[new_name] = chat_sessions.pop("New Chat")
+        else:
+            chat_sessions[new_name] = []
+        chat_name = new_name
+        print(f"[DEBUG] Renamed 'New Chat' to: {chat_name}")
+
+    # Process user input with chatbot_response
+    new_history, _ = chatbot_response(user_text, history)
+
+    # Save updated history
+    chat_sessions[chat_name] = new_history
+
+    # Always define session_html before returning
+    session_html = create_session_html(session_list)
+
+    return new_history, "", session_list, session_html
+
 custom_js = """
 <script>
 document.addEventListener("click", function(e) {
@@ -235,68 +332,71 @@ document.addEventListener("click", function(e) {
   if (item && !optionsBtn) {
     console.log("[DEBUG] Clicked .session-item with index:", item.dataset.index);
 
+    // We select the actual <textarea> inside #session-select-callback
     var hiddenBox = document.querySelector("#session-select-callback textarea");
     if (hiddenBox) {
       hiddenBox.value = item.dataset.index;
       console.log("[DEBUG] Setting hidden callback value:", hiddenBox.value);
+      // Dispatch 'input' event to match .input(...) in Python
       hiddenBox.dispatchEvent(new Event("input", { bubbles: true }));
     } else {
       console.log("[DEBUG] #session-select-callback textarea not found!");
     }
   }
 
-  // Handle options button click to show modal
+  // Handle options button click to toggle modal visibility
   if (optionsBtn) {
     console.log("[DEBUG] Options button clicked for session ID:", optionsBtn.dataset.sessionId);
-    
+
     if (!modal) {
       console.error("[ERROR] Modal with id 'modal' not found!");
       return;
     }
 
-    // Store selected session ID
-    window.selectedSessionId = optionsBtn.dataset.sessionId;
-
-    // Show modal
-    modal.style.display = "block";
+    // Toggle visibility of the modal
+    if (modal.style.display === "none" || modal.style.display === "") {
+      console.log("[DEBUG] Showing modal");
+      modal.style.display = "block";  // Show the modal
+      var rect = optionsBtn.getBoundingClientRect();
+      console.log("[DEBUG] Positioning modal at top:", rect.bottom + window.scrollY, "left:", rect.left);
+      // Position the modal just below the options div
+      modal.style.top = (rect.bottom + window.scrollY + 50) + "px";
+      modal.style.left = (rect.left + 40) + "px";  // Align the modal with the options div
+    }
   } 
+  // Close the modal if it's open and clicked anywhere else
   else if (modal && modal.style.display === "block") {
-    modal.style.display = "none";  // Close modal if clicking outside
+    console.log("[DEBUG] Clicking outside of options button, closing modal.");
+    modal.style.display = "none";  // Close the modal
   }
-});
 
-// Handle rename button click
-document.querySelector(".rename-btn").addEventListener("click", function() {
-  if (window.selectedSessionId !== undefined) {
+  // Handle rename button click
+  if (e.target.classList.contains('rename-btn')) {
+    var sessionId = optionsBtn ? optionsBtn.dataset.sessionId : null;
+    console.log("[DEBUG] Rename button clicked for session ID:", sessionId);
     var newName = prompt("Enter new session name:");
     if (newName) {
       console.log("[DEBUG] Renaming session:", newName);
 
-      var renameBox = document.querySelector("#session-rename-callback textarea");
-      if (renameBox) {
-        renameBox.value = window.selectedSessionId + "||" + newName;
-        renameBox.dispatchEvent(new Event("input", { bubbles: true }));
-      }
+      // Rename the session in the backend (Python) logic here
+      // (Currently not implemented in this snippet)
+
+      modal.style.display = "none"; // Close modal after renaming
     }
   }
-});
 
-// Handle delete button click
-document.querySelector(".delete-btn").addEventListener("click", function() {
-  if (window.selectedSessionId !== undefined) {
+  // Handle delete button click
+  if (e.target.classList.contains('delete-btn')) {
+    var sessionId = optionsBtn ? optionsBtn.dataset.sessionId : null;
+    console.log("[DEBUG] Delete button clicked for session ID:", sessionId);
     if (confirm("Are you sure you want to delete this session?")) {
-      console.log("[DEBUG] Deleting session ID:", window.selectedSessionId);
-
-      var deleteBox = document.querySelector("#session-delete-callback textarea");
-      if (deleteBox) {
-        deleteBox.value = window.selectedSessionId;
-        deleteBox.dispatchEvent(new Event("input", { bubbles: true }));
-      }
+      console.log("[DEBUG] Deleting session with ID:", sessionId);
+      // Implement the delete logic here
+      modal.style.display = "none"; // Close modal after deleting
     }
   }
 });
 </script>
-
 """
 
 # =============================================
@@ -334,6 +434,11 @@ html, body {
     overflow-x: hidden !important; /* Prevents overflow */
     display: flex;
     justify-content: flex-start; /* Ensures everything starts from left */
+}
+
+.fillable.svelte-vnblmh.app{
+    margin: 0px;
+    padding: 0px;
 }
 
 /* === Fix .wrap to Prevent Right Overflow While Adding Space === */
@@ -385,23 +490,12 @@ html, body {
 }
 
 #component-2{
-    height: 100%;
+    height: 100vh;
+    display: block;
 }
 
 #component-3{
     margin-bottom: 10px;
-}
-
-/* === Sidebar (No Changes, Just Ensuring Proper Width) === */
-.sidebar {
-    flex: 0 0 220px;
-    height: 100%;
-    background-color: #090f1c;
-    padding: 20px;
-    border-right: 3px solid #1e2d4f;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
 }
 
 #component-4{
@@ -412,7 +506,11 @@ html, body {
     padding: 10px;
     
 }
-
+#component-6{
+    display: block;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
 
 /* === Ensure Main Column Fills Remaining Space Properly with Padding Instead of Margin === */
 .main-column {
@@ -421,7 +519,10 @@ html, body {
     max-width: calc(100vw - 220px) !important;
     padding-right: 15px !important; /* FIX: Adds right spacing without overflow */
     background-color: #090f1c;
-    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
 }
 
 /* === Fix Chatbot Container to Prevent Overflow While Allowing Right Space === */
@@ -638,7 +739,7 @@ html, body {
             gr.Markdown(markdown_content)
 
             new_chat_btn = gr.Button("➕  New Chat", elem_classes=["new-chat-btn", "spaced-icon-btn"], interactive=False)
-            session_list = gr.State([])  
+            session_list = gr.State([])
             session_html = gr.HTML("<div class='session-list'></div>")
             
             # Hidden textbox for session selection
@@ -675,62 +776,6 @@ html, body {
             chat_history = gr.State([])
 
             # --- Send message handler ---
-            def handle_message(user_input, history, session_list):
-                print("[DEBUG] handle_message triggered with:", user_input)
-
-                # Ensure user_input is a string
-                if isinstance(user_input, dict):  # If input is multimodal (e.g., file or text)
-                    user_text = user_input.get("text", "").strip()
-                else:
-                    user_text = str(user_input).strip()
-
-                if not user_text:
-                    print("[DEBUG] Empty user input. Ignoring.")
-                    return history, "", session_list, create_session_html(session_list)
-
-                session_list = list(session_list)  # Convert Gradio state to a mutable list
-
-                # ✅ Ensure "New Chat" exists in session_list
-                if not session_list:
-                    session_list.append("New Chat")
-                    print("[DEBUG] Initialized session list with 'New Chat'")
-
-                # ✅ Ensure "New Chat" exists in chat_sessions
-                if "New Chat" not in chat_sessions:
-                    chat_sessions["New Chat"] = [{"role": "assistant", "content": "🔄 New chat started!"}]
-                    print("[DEBUG] Initialized 'New Chat' in chat_sessions")
-
-                # ✅ Get the latest session (before renaming)
-                chat_name = session_list[-1]
-
-                # ✅ Rename "New Chat" dynamically based on first user message (ONLY ONCE)
-                if chat_name == "New Chat":
-                    new_name = user_text[:20] + "..."  # Limit to first 20 characters
-                    session_list[-1] = new_name  # ✅ Update the session list with new name
-
-                    # ✅ Move history safely
-                    if "New Chat" in chat_sessions:  
-                        chat_sessions[new_name] = chat_sessions.pop("New Chat")  # ✅ Safe .pop()
-                    else:
-                        chat_sessions[new_name] = []  # ✅ Prevent KeyError if missing
-
-                    chat_name = new_name  # ✅ Update reference
-                    print(f"[DEBUG] Renamed session to: {chat_name}")
-
-                # ✅ Process chatbot response
-                new_history, _ = chatbot_response(user_text, history)
-
-                # ✅ Append the user's message correctly
-                new_history.append({"role": "user", "content": user_text})
-
-                # ✅ Save chat history under the correct session
-                chat_sessions[chat_name] = new_history
-
-                # ✅ Update session HTML dynamically
-                session_html = create_session_html(session_list)
-
-                return new_history, "", session_list, session_html  # ✅ Return updated chat history and session HTML
-
             message_input.submit(
                 handle_message,
                 inputs=[message_input, chat_history, session_list],
@@ -775,5 +820,5 @@ html, body {
                 outputs=[new_chat_btn]
             )
 
-demo.launch(favicon_path='W3_Nobg.png', server_name="192.168.0.227", server_port=8000)
-# , server_name="192.168.0.227", server_port=8000
+
+demo.launch(favicon_path='W3_Nobg.png', server_name="192.168.0.35", server_port=8000)
