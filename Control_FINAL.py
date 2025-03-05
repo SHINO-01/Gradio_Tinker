@@ -316,6 +316,10 @@ with gr.Blocks(
     max-width: 100vw !important;
 }
 
+.fillable.svelte-vnblmh.app{
+    padding: 0px;
+}
+
 footer {
     display: none !important;
     visibility: hidden !important;
